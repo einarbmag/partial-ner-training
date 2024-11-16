@@ -111,3 +111,59 @@ def convert_partial_labels_to_ignore_index(
     Convert partial labels (-1) to the model's ignore index (-100)
     """
     return [ignore_index if label == -1 else label for label in labels]
+
+def prepare_mixed_dataset(
+    dataset: Dataset,
+    full_label_indices: np.ndarray,
+    partial_label_fraction: float = 0.2,
+    seed: int = 42
+) -> Dataset:
+    """
+    Prepare a dataset with a fixed set of fully labeled data and an additional
+    fraction of partially labeled data.
+    
+    Args:
+        dataset: The input dataset
+        full_label_indices: Indices of examples to keep fully labeled
+        partial_label_fraction: Fraction of remaining data to add as partially labeled
+        seed: Random seed for reproducibility
+    
+    Returns:
+        Dataset with mixed fully and partially labeled examples
+    """
+    random.seed(seed)
+    np.random.seed(seed)
+    
+    total_size = len(dataset)
+    
+    # Get indices not in full_label_indices for partial labeling
+    all_indices = set(range(total_size))
+    full_indices_set = set(full_label_indices)
+    remaining_indices = list(all_indices - full_indices_set)
+    
+    # Randomly select indices for partial labeling
+    partial_label_size = int(len(remaining_indices) * partial_label_fraction)
+    partial_indices = set(np.random.choice(
+        remaining_indices, 
+        size=partial_label_size, 
+        replace=False
+    ))
+    
+    # Create the mixed dataset
+    def process_example(example, idx):
+        if idx in full_indices_set:
+            return example
+        elif idx in partial_indices:
+            return create_partial_labels(example, keep_prob=1.0)
+        else:
+            return None
+    
+    # Apply the processing and filter out None results
+    processed_examples = []
+    for idx, example in enumerate(dataset):
+        processed = process_example(example, idx)
+        if processed is not None:
+            processed_examples.append(processed)
+    
+    # Convert back to Dataset format
+    return Dataset.from_list(processed_examples)

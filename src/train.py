@@ -9,7 +9,7 @@ from transformers import (
 )
 import numpy as np
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
-from data_processor import prepare_partial_dataset, convert_partial_labels_to_ignore_index
+from data_processor import prepare_mixed_dataset, convert_partial_labels_to_ignore_index
 
 def tokenize_and_align_labels(examples, tokenizer):
     """
@@ -70,24 +70,42 @@ def compute_metrics(eval_pred):
         'recall': recall
     }
 
-def main():
-    # Load dataset
-    dataset = load_dataset("wnut_17")
+def train_and_evaluate(
+    dataset,
+    tokenizer,
+    full_label_indices: np.ndarray,
+    partial_label_fraction: float,
+    seed: int = 42,
+    output_dir: str = "./results"
+) -> dict:
+    """
+    Train and evaluate a model with specific data fractions.
     
-    # Initialize tokenizer
-    model_checkpoint = "bert-base-cased"
-    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+    Args:
+        dataset: The full dataset
+        tokenizer: The tokenizer to use
+        full_label_indices: Indices of examples to keep fully labeled
+        partial_label_fraction: Fraction of partially labeled data
+        seed: Random seed
+        output_dir: Directory for outputs
     
-    # Prepare partially labeled training data (50% of examples will be partially labeled)
-    partial_train_dataset = prepare_partial_dataset(
+    Returns:
+        Dictionary containing evaluation metrics
+    """
+    # Prepare the mixed dataset
+    mixed_train_dataset = prepare_mixed_dataset(
         dataset["train"],
-        partial_label_fraction=0.5,
-        seed=42
+        full_label_indices=full_label_indices,
+        partial_label_fraction=partial_label_fraction,
+        seed=seed
     )
+    
+    # Calculate actual fractions for reporting
+    full_label_fraction = len(full_label_indices) / len(dataset["train"])
     
     # Tokenize datasets
     tokenized_datasets = {}
-    tokenized_datasets["train"] = partial_train_dataset.map(
+    tokenized_datasets["train"] = mixed_train_dataset.map(
         lambda x: tokenize_and_align_labels(x, tokenizer),
         batched=True,
         remove_columns=dataset["train"].column_names
@@ -99,6 +117,7 @@ def main():
     )
     
     # Initialize model
+    model_checkpoint = "bert-base-cased"
     num_labels = 17  # Number of labels in WNUT dataset
     model = AutoModelForTokenClassification.from_pretrained(
         model_checkpoint,
@@ -106,8 +125,9 @@ def main():
     )
     
     # Define training arguments
+    run_name = f"full{full_label_fraction:.2f}_partial{partial_label_fraction:.2f}"
     training_args = TrainingArguments(
-        output_dir="./results",
+        output_dir=f"{output_dir}/{run_name}",
         evaluation_strategy="epoch",
         learning_rate=2e-5,
         per_device_train_batch_size=16,
@@ -115,12 +135,11 @@ def main():
         num_train_epochs=3,
         weight_decay=0.01,
         push_to_hub=False,
+        report_to="none",  # Disable wandb/tensorboard logging
     )
     
-    # Initialize data collator
-    data_collator = DataCollatorForTokenClassification(tokenizer)
-    
     # Initialize trainer
+    data_collator = DataCollatorForTokenClassification(tokenizer)
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -134,9 +153,58 @@ def main():
     # Train the model
     trainer.train()
     
-    # Evaluate the model
+    # Evaluate
     metrics = trainer.evaluate()
-    print(f"\nEvaluation metrics:\n{metrics}")
+    
+    # Add experiment parameters to metrics
+    metrics.update({
+        "full_label_fraction": full_label_fraction,
+        "partial_label_fraction": partial_label_fraction,
+        "total_examples": len(mixed_train_dataset),
+    })
+    
+    return metrics
+
+def main():
+    # Load dataset and initialize tokenizer
+    dataset = load_dataset("wnut_17")
+    model_checkpoint = "bert-base-cased"
+    tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
+    
+    # Set random seed for reproducibility
+    np.random.seed(42)
+    
+    # Select indices for fully labeled data (10%)
+    total_size = len(dataset["train"])
+    full_label_size = int(total_size * 0.1)  # 10% fully labeled
+    full_label_indices = np.random.permutation(total_size)[:full_label_size]
+    
+    # Define experiment configurations
+    partial_label_fractions = [0.1, 0.2, 0.5, 0.9]  # Variable partial labeling
+    
+    # Run experiments
+    results = []
+    for partial_frac in partial_label_fractions:
+        print(f"\nRunning experiment with {partial_frac:.1%} partial labels...")
+        metrics = train_and_evaluate(
+            dataset=dataset,
+            tokenizer=tokenizer,
+            full_label_indices=full_label_indices,
+            partial_label_fraction=partial_frac,
+            output_dir="./results"
+        )
+        results.append(metrics)
+        
+        # Print current results
+        print(f"\nResults for {partial_frac:.1%} partial labels:")
+        print(f"F1 Score: {metrics['eval_f1']:.4f}")
+        print(f"Precision: {metrics['eval_precision']:.4f}")
+        print(f"Recall: {metrics['eval_recall']:.4f}")
+    
+    # Save all results
+    import json
+    with open("./results/experiment_results.json", "w") as f:
+        json.dump(results, f, indent=2)
 
 if __name__ == "__main__":
     main()
