@@ -117,7 +117,7 @@ def train_and_evaluate(
     )
     
     # Initialize model
-    model_checkpoint = "bert-base-cased"
+    model_checkpoint = "distilbert/distilbert-base-cased"
     num_labels = 17  # Number of labels in WNUT dataset
     model = AutoModelForTokenClassification.from_pretrained(
         model_checkpoint,
@@ -168,7 +168,7 @@ def train_and_evaluate(
 def main():
     # Load dataset and initialize tokenizer
     dataset = load_dataset("wnut_17")
-    model_checkpoint = "bert-base-cased"
+    model_checkpoint = "distilbert/distilbert-base-cased"
     tokenizer = AutoTokenizer.from_pretrained(model_checkpoint)
     
     # Set random seed for reproducibility
@@ -180,7 +180,7 @@ def main():
     full_label_indices = np.random.permutation(total_size)[:full_label_size]
     
     # Define experiment configurations
-    partial_label_fractions = [0.1, 0.2, 0.5, 0.9]  # Variable partial labeling
+    partial_label_fractions = [0.0,0.1, 0.2, 0.5, 0.9]  # Variable partial labeling
     
     # Run experiments
     results = []
