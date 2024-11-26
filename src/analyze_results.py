@@ -15,16 +15,15 @@ def load_results(results_dir: str = "./results") -> List[Dict]:
     
     return results
 
-def print_f1_scores(results: List[Dict]):
-    """Print F1 scores for each experiment in a formatted table."""
+def print_markdown_table(results: List[Dict]):
+    """Print F1 scores for each experiment in markdown table format."""
     # Sort results by partial label fraction
     sorted_results = sorted(results, key=lambda x: x['partial_label_fraction'])
     
     # Print header
-    print("\nF1 Scores for Different Partial Label Fractions")
-    print("-" * 50)
-    print(f"{'Partial Label %':>15} | {'F1 Score':>10} | {'Precision':>10} | {'Recall':>10}")
-    print("-" * 50)
+    print("\n## F1 Scores for Different Partial Label Fractions\n")
+    print("| Partial Label % | F1 Score | Precision | Recall |")
+    print("|----------------|-----------|-----------|---------|")
     
     # Print results
     for result in sorted_results:
@@ -33,15 +32,13 @@ def print_f1_scores(results: List[Dict]):
         precision = result['eval_precision']
         recall = result['eval_recall']
         
-        print(f"{partial_frac:>14.1%} | {f1:>10.4f} | {precision:>10.4f} | {recall:>10.4f}")
-    
-    print("-" * 50)
+        print(f"| {partial_frac:>12.1%} | {f1:>9.4f} | {precision:>9.4f} | {recall:>7.4f} |")
 
 def main():
     try:
         # Load and analyze results
         results = load_results()
-        print_f1_scores(results)
+        print_markdown_table(results)
         
     except FileNotFoundError as e:
         print(f"Error: {e}")

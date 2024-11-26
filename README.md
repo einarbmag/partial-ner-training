@@ -70,17 +70,7 @@ View the results across all experiments:
 python src/analyze_results.py
 ```
 
-This will display a table showing F1 scores, precision, and recall for each partial label fraction:
-```
-F1 Scores for Different Partial Label Fractions
---------------------------------------------------
-  Partial Label % |  F1 Score  | Precision |   Recall
---------------------------------------------------
-            0.0% |    0.XXXX  |   0.XXXX  |   0.XXXX
-           10.0% |    0.XXXX  |   0.XXXX  |   0.XXXX
-           ...
---------------------------------------------------
-```
+This will print a markdown table showing F1 scores, precision, and recall for each partial label fraction.
 
 ## Implementation Details
 
@@ -109,6 +99,17 @@ Tests cover:
 - Mixed dataset preparation
 - Label conversion utilities
 
-## License
+## Results
 
-MIT
+Here are the results from running train.py followed by analyze_results.py:
+
+### F1 Scores for Different Partial Label Fractions
+
+| Partial Label % | F1 Score | Precision | Recall |
+|----------------|-----------|-----------|---------|
+|         0.0% |    0.8825 |    0.8474 |  0.9205 |
+|        10.0% |    0.8898 |    0.8668 |  0.9228 |
+|        20.0% |    0.9023 |    0.8800 |  0.9283 |
+|        50.0% |    0.9164 |    0.9032 |  0.9364 |
+|        90.0% |    0.9299 |    0.9287 |  0.9429 |
+
